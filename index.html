@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Control Tower Logística - dashboard operacional responsivo com importação local de CSV" />
-  <title>Control Tower - Controle CT-e</title>
+  <title>Control Tower Logística</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
@@ -70,6 +70,12 @@
   
 /* Multisselecao dos filtros globais */
 .multi-filter{position:relative;width:100%}.multi-trigger{width:100%;height:32px;padding:0 8px;display:flex;align-items:center;gap:6px;text-align:left;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);cursor:pointer}.multi-caption{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.multi-count{display:none;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:20px;background:var(--navy);color:#fff;font-size:9px;font-weight:800}.multi-count.on{display:inline-flex}.multi-arrow{transition:.2s}.multi-filter.open .multi-arrow{transform:rotate(180deg)}.multi-menu{display:none;position:absolute;z-index:100;top:calc(100% + 5px);left:0;width:max(100%,270px);max-width:min(360px,92vw);padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:0 14px 40px #061f3833}.multi-filter.open .multi-menu{display:block}.multi-search{width:100%!important;height:34px!important;margin-bottom:6px}.multi-all,.multi-option{display:flex!important;align-items:center;gap:8px;padding:8px!important;margin:0!important;border-radius:8px;cursor:pointer;text-transform:none!important;letter-spacing:0!important;font-size:10px!important;color:var(--text)!important}.multi-all{border-bottom:1px solid var(--line);border-radius:0}.multi-option:hover{background:#eef6fb}.multi-all input,.multi-option input{width:15px!important;height:15px!important;min-width:15px;accent-color:var(--blue)}.multi-options{max-height:230px;overflow:auto}.multi-empty{padding:14px;text-align:center;color:var(--muted)}body.dark .multi-trigger,body.dark .multi-menu,body.dark .multi-search{background:#202b34;color:#e7edf2;border-color:#3a4853}body.dark .multi-option:hover{background:#293640}@media(max-width:760px){.multi-menu{position:fixed;left:12px;right:12px;top:auto;bottom:12px;width:auto;max-width:none;max-height:72vh}.multi-options{max-height:46vh}.multi-trigger{height:36px}}
+
+    .extra-dimensions{margin-bottom:18px}
+    #detailTable{min-width:max-content}
+    #detailTable th,#detailTable td{max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .table-wrap{overflow:auto;max-width:100%;scrollbar-gutter:stable}
+    @media(max-width:760px){.extra-dimensions{grid-template-columns:1fr}.filter-body{grid-template-columns:1fr}.field[style*="grid-column"]{grid-column:span 1!important}}
 </style>
 </head>
 <body>
@@ -103,6 +109,7 @@
           <div class="field"><label>Cliente</label><input id="fClient" type="hidden"><div class="multi-filter" id="mfClient"><button type="button" class="multi-trigger"><span class="multi-caption">Todos</span><span class="multi-count"></span><span class="multi-arrow">▾</span></button><div class="multi-menu"><input class="multi-search" type="search" placeholder="Buscar cliente..." autocomplete="off"><label class="multi-all"><input type="checkbox"> Selecionar todos</label><div class="multi-options"></div></div></div></div>
           <div class="field"><label>Operação</label><input id="fOperation" type="hidden"><div class="multi-filter" id="mfOperation"><button type="button" class="multi-trigger"><span class="multi-caption">Todas</span><span class="multi-count"></span><span class="multi-arrow">▾</span></button><div class="multi-menu"><input class="multi-search" type="search" placeholder="Buscar operação..." autocomplete="off"><label class="multi-all"><input type="checkbox"> Selecionar todos</label><div class="multi-options"></div></div></div></div>
           <div class="field"><label>Transportadora</label><input id="fCarrier" type="hidden"><div class="multi-filter" id="mfCarrier"><button type="button" class="multi-trigger"><span class="multi-caption">Todas</span><span class="multi-count"></span><span class="multi-arrow">▾</span></button><div class="multi-menu"><input class="multi-search" type="search" placeholder="Buscar transportadora..." autocomplete="off"><label class="multi-all"><input type="checkbox"> Selecionar todos</label><div class="multi-options"></div></div></div></div>
+          <div class="field"><label>Ocorrência de entrega (coluna U)</label><select id="fOccDelivery"><option value="">Todas</option></select></div>
           <div class="field"><label>UF destino</label><select id="fUf"><option value="">Todas</option></select></div>
           <div class="field"><label>Status</label><select id="fStatus"><option value="">Todos</option><option>Finalizado</option><option>Pendente</option></select></div>
           <div class="field"><label>Situação do prazo</label><select id="fDeadline"><option value="">Todas</option><option>No prazo</option><option>Fora do prazo</option><option>Sem previsão</option></select></div>
@@ -129,7 +136,14 @@
           <div class="chart-card"><div class="chart-head"><div><h4>🏭 Operações com maior volume</h4><p>Participação por operação.</p></div></div><div class="chart-box"><canvas id="chOperations"></canvas></div></div>
           <div class="chart-card"><div class="chart-head"><div><h4>⏱️ Lead time de entrega</h4><p>Emissão até entrega física.</p></div></div><div class="chart-box"><canvas id="chLead"></canvas></div></div>
         </div>
-        <div class="section-title"><div><h3>📋 Base detalhada</h3><p>Registros da seleção atual, com paginação e exportação.</p></div></div>
+        <div class="section-title"><div><h3>🧭 Novas dimensões da operação</h3><p>Informações das colunas U, AA, AG e AI da base importada.</p></div></div>
+        <div class="chart-grid extra-dimensions">
+          <div class="chart-card"><div class="chart-head"><div><h4>⚠️ Ocorrência de entrega</h4><p>Coluna U • principais registros</p></div></div><div class="chart-box"><canvas id="chOccDeliveryRaw"></canvas></div></div>
+          <div class="chart-card"><div class="chart-head"><div><h4>🛣️ Tipo de viagem</h4><p>Coluna AA • composição da operação</p></div></div><div class="chart-box"><canvas id="chTripType"></canvas></div></div>
+          <div class="chart-card"><div class="chart-head"><div><h4>☁️ Tipo de upload</h4><p>Coluna AG • origem do carregamento</p></div></div><div class="chart-box"><canvas id="chUploadType"></canvas></div></div>
+          <div class="chart-card"><div class="chart-head"><div><h4>👤 Autor da baixa</h4><p>Coluna AI • principais responsáveis</p></div></div><div class="chart-box"><canvas id="chClosingAuthor"></canvas></div></div>
+        </div>
+        <div class="section-title"><div><h3>📋 Base detalhada</h3><p>Todas as informações do CSV, na ordem original, com paginação, pesquisa e exportação.</p></div></div>
 
         <div class="table-card">
           <div class="table-tools"><div class="table-tools-left"><input class="small-input" id="tableSearch" placeholder="Pesquisar na tabela..." /><select id="pageSize" class="btn"><option>25</option><option selected>50</option><option>100</option><option>200</option></select></div><div class="table-tools-right"><button class="btn" id="exportBtn">📤 Exportar filtrado</button></div></div>
@@ -349,6 +363,86 @@ function toggleTheme(){const dark=document.body.classList.toggle('dark');$('#the
 
 $('#themeBtn').onclick=toggleTheme;if(localStorage.getItem('ct-theme')==='dark')toggleTheme();
 $('#importBtn').onclick=()=>$('#fileInput').click();$('#fileInput').onchange=e=>importCsv(e.target.files[0]);$('#clearData').onclick=clearData;$('#clearFilters').onclick=clearFilters;$('#exportBtn').onclick=exportCsv;$('#menuToggle').onclick=()=>{$('#sidebar').classList.toggle('open');$('#drawerBg').classList.toggle('open')};$('#drawerBg').onclick=()=>{$('#sidebar').classList.remove('open');$('#drawerBg').classList.remove('open')};$$('.nav-btn').forEach(b=>b.onclick=()=>switchPage(b.dataset.page));Object.entries({client:'#fClient',operation:'#fOperation',carrier:'#fCarrier',uf:'#fUf',occ:'#fOccurrence'}).forEach(([key,id])=>$(id).onchange=()=>{refreshDependentFilters(key);applyFilters()});['#fStatus','#fDeadline','#fStart','#fEnd','#fMonth'].forEach(id=>$(id).onchange=applyFilters);let searchTimer;$('#fSearch').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(applyFilters,250)};$('#tableSearch').oninput=e=>{state.tableSearch=e.target.value;state.tablePage=1;renderDetails()};$('#pageSize').onchange=()=>{state.tablePage=1;renderDetails()};$('#prevPage').onclick=()=>{state.tablePage--;renderDetails()};$('#nextPage').onclick=()=>{state.tablePage++;renderDetails()};
+
+/* ===== PATCH PYTHON 2026-09-03: base completa, buscas e dimensoes U/AA/AG/AI ===== */
+const extraCols={occDeliveryRaw:'DESC_OCORR_ENTREGA',tripType:'DESC_TP_VIAGEM',uploadType:'TIPO_UPLOAD',closingAuthor:'AUTOR_BAIXA'};
+const originalRenderOverviewCharts=renderOverviewCharts;
+
+function filterText(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR').trim()}
+function valueOrNI(v){const x=norm(v);return x||'Não informado'}
+function rawHeaders(){return state.raw&&state.raw.length?Object.keys(state.raw[0]).filter(k=>k&&k!=='__parsed_extra'):[]}
+function fillExtraFilter(){
+  const el=$('#fOccDelivery'); if(!el)return;
+  const old=el.value;
+  const values=[...new Set(state.data.map(r=>valueOrNI(r[extraCols.occDeliveryRaw])))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  options('#fOccDelivery',values,'Todas'); el.value=values.includes(old)?old:'';
+}
+function installReliableMultiSearch(){
+  ['#mfClient','#mfOperation','#mfCarrier'].forEach(sel=>{
+    const root=$(sel); if(!root)return;
+    const input=root.querySelector('.multi-search'); if(!input)return;
+    input.oninput=()=>{
+      const q=filterText(input.value);
+      root.querySelectorAll('.multi-option').forEach(option=>{
+        option.classList.toggle('hidden',q&&!filterText(option.textContent).includes(q));
+      });
+      const visible=root.querySelectorAll('.multi-option:not(.hidden)').length;
+      const empty=root.querySelector('.multi-empty-search');
+      if(empty)empty.remove();
+      if(!visible&&q){const msg=document.createElement('div');msg.className='multi-empty multi-empty-search';msg.textContent='Nenhuma opção encontrada';root.querySelector('.multi-options').appendChild(msg)}
+    };
+  });
+}
+function renderExtraCharts(){
+  const d=state.filtered;
+  barTop('chOccDeliveryRaw',d,extraCols.occDeliveryRaw,10,colors.navy,true);
+  barTop('chTripType',d,extraCols.tripType,10,colors.gray,true);
+  barTop('chUploadType',d,extraCols.uploadType,10,colors.blue,true);
+  barTop('chClosingAuthor',d,extraCols.closingAuthor,10,colors.navy,true);
+}
+renderOverviewCharts=function(){originalRenderOverviewCharts();renderExtraCharts()};
+
+renderDetails=function(){
+  let d=state.filtered;
+  const headers=rawHeaders();
+  if(state.tableSearch){const q=filterText(state.tableSearch);d=d.filter(r=>filterText(headers.map(h=>r[h]).join(' ')).includes(q))}
+  const size=+$('#pageSize').value,totalPages=Math.max(1,Math.ceil(d.length/size));
+  state.tablePage=Math.max(1,Math.min(state.tablePage,totalPages));
+  const start=(state.tablePage-1)*size,rows=d.slice(start,start+size);
+  $('#detailHead').innerHTML='<tr>'+headers.map(h=>`<th title="${esc(h)}">${esc(h)}</th>`).join('')+'</tr>';
+  $('#detailBody').innerHTML=rows.map(r=>'<tr>'+headers.map(h=>`<td title="${esc(r[h])}">${esc(r[h])||'--'}</td>`).join('')+'</tr>').join('')||`<tr><td colspan="${Math.max(1,headers.length)}"><div class="empty"><div><span>🔍</span><b>Nenhum registro encontrado</b></div></div></td></tr>`;
+  $('#pageInfo').textContent=`${num(d.length)} registros • ${headers.length} colunas • página ${state.tablePage} de ${totalPages}`;
+  $('#prevPage').disabled=state.tablePage<=1;$('#nextPage').disabled=state.tablePage>=totalPages;
+};
+
+const originalFillFilters=fillFilters;
+fillFilters=function(){originalFillFilters();fillExtraFilter();setTimeout(installReliableMultiSearch,0)};
+
+const originalFilters=filters;
+filters=function(){const f=originalFilters();f.occDeliveryRaw=$('#fOccDelivery')?$('#fOccDelivery').value:'';return f};
+
+applyFilters=function(){
+  state.pendingPage=1;state.carrierPage=1;state.occPage=1;const f=filters();
+  state.filtered=state.data.filter(r=>{
+    if(f.client.length&&!f.client.includes(r.__client))return false;if(f.operation.length&&!f.operation.includes(r.__operation))return false;if(f.carrier.length&&!f.carrier.includes(r.__carrier))return false;
+    if(f.uf&&r.__uf!==f.uf)return false;if(f.status&&r.__status!==f.status)return false;if(f.deadline&&r.__deadline!==f.deadline)return false;if(f.occ&&r.__occ!==f.occ)return false;
+    if(f.occDeliveryRaw&&valueOrNI(r[extraCols.occDeliveryRaw])!==f.occDeliveryRaw)return false;
+    if(f.start&&(!r.__emission||r.__emission<f.start))return false;if(f.end&&(!r.__emission||r.__emission>f.end))return false;if(f.month&&monthKey(r.__delivery)!==f.month)return false;
+    if(f.search&&!filterText([r[cols.ctrc],r[cols.nf],r[cols.destination],r.__city].join(' ')).includes(filterText(f.search)))return false;
+    if(state.cardFilter){const c=state.cardFilter;if(c.status&&r.__status!==c.status)return false;if(c.deadline&&r.__deadline!==c.deadline)return false;if(c.occ&&r.__occ!==c.occ)return false;if(c.proof===false&&r.__proof)return false}return true
+  });state.tablePage=1;renderAll();renderFilterChips()
+};
+
+const originalRenderFilterChips=renderFilterChips;
+renderFilterChips=function(){originalRenderFilterChips();const v=$('#fOccDelivery')?.value;if(v)$('#activeFilters').insertAdjacentHTML('beforeend',`<span class="chip">Ocorrência entrega: ${esc(v)}</span>`)};
+
+const originalClearFilters=clearFilters;
+clearFilters=function(){if($('#fOccDelivery'))$('#fOccDelivery').value='';originalClearFilters()};
+
+if($('#fOccDelivery'))$('#fOccDelivery').onchange=applyFilters;
+installReliableMultiSearch();
+/* ===== FIM PATCH PYTHON ===== */
+
 Chart.defaults.font.family='Inter, Segoe UI, Arial, sans-serif';Chart.defaults.color='#68798a';emptyState();
 </script>
 </body>
