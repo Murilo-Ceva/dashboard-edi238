@@ -204,8 +204,8 @@ body.apoio-expanded .filter-panel:not(#page-apoio .filter-panel){display:block!i
 <button class="btn theme-btn" id="themeBtn" title="Alternar tema">🌙</button>
 <button class="btn btn-primary" id="importBtn">📥 <span class="label">Importar EDI</span></button>
 <button class="btn btn-xlsx" id="importXlsxBtn">📁 <span class="label">Importar APOIO</span></button>
-<input accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden id="fileInput" type="file"/>
-<input accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden id="xlsxInput" type="file"/>
+<input accept=".csv,.csv.gz,.gz,.xlsx,.xls,text/csv,application/gzip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden id="fileInput" type="file"/>
+<input accept=".csv,.csv.gz,.gz,.xlsx,.xls,text/csv,application/gzip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden id="xlsxInput" type="file"/>
 </div>
 </header>
 <div class="content">
@@ -740,14 +740,17 @@ const val=(r,names)=>{for(const n of names){if(r[n]!==undefined)return clean(r[n
 const e=x=>clean(x).replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const nf=x=>new Intl.NumberFormat('pt-BR').format(x||0);
 function statusRows(el, rows){q(el).innerHTML=rows.map(([a,b])=>`<div class="apoio-status-row"><span>${e(a)}</span><b>${e(b)}</b></div>`).join('')}
-function fileKind(name){return /\.csv$/i.test(name)?'csv':/\.xls(x)?$/i.test(name)?'xlsx':''}
+function fileKind(name){return /\.csv\.gz$|\.gz$/i.test(name)?'gzip':/\.csv$/i.test(name)?'csv':/\.xls(x)?$/i.test(name)?'xlsx':''}
 function headersOf(rows){return rows.length?Object.keys(rows[0]).map(hv):[]}
 function isEDI(rows){const h=headersOf(rows);return ['NRCTRC','DTEMISSAO','RAZAOSOCIALCLIENTE','RAZASOCIAL'].every(x=>h.includes(x))}
 function isAPOIO(rows){const h=headersOf(rows);return ['NOMEPONTOOPER','RESPONSAVEL','EMAIL','CONCAT'].every(x=>h.includes(x))}
-function readAny(file, expected, done){
- if(!file)return; showLoading(true,'Lendo '+expected+'...','Reconhecendo CSV/XLSX e procurando uma aba válida.');
+function readAny(file,expected,done){
+ if(!file)return;showLoading(true,'Lendo '+expected+'...','Reconhecendo CSV, CSV.GZ ou XLSX e procurando uma base válida.');
  const finish=(rows,sheet='CSV')=>{try{rows=rows.filter(r=>Object.values(r).some(v=>clean(v)));if(expected==='EDI'&&!isEDI(rows))throw Error('O arquivo não foi reconhecido como EDI. Verifique os cabeçalhos.');if(expected==='APOIO'&&!isAPOIO(rows))throw Error('O arquivo não foi reconhecido como APOIO. Verifique NOME_PONTO_OPER, RESPONSAVÉL, E_MAIL e CONCAT.');done(rows,sheet);showLoading(false)}catch(err){showLoading(false);toast(err.message,true)}};
- if(fileKind(file.name)==='csv'){Papa.parse(file,{header:true,skipEmptyLines:'greedy',delimiter:'',worker:false,transformHeader:h=>clean(h).replace(/^\uFEFF/,''),complete:r=>finish(r.data,'CSV'),error:x=>{showLoading(false);toast('Falha ao ler CSV: '+x.message,true)}});return}
+ const parseCsv=(f,label='CSV')=>Papa.parse(f,{header:true,skipEmptyLines:'greedy',delimiter:'',worker:false,transformHeader:h=>clean(h).replace(/^\uFEFF/,''),complete:r=>finish(r.data,label),error:x=>{showLoading(false);toast('Falha ao ler CSV: '+x.message,true)}});
+ const kind=fileKind(file.name);
+ if(kind==='gzip'){(async()=>{try{if(typeof DecompressionStream==='undefined')throw Error('Navegador sem suporte a GZIP. Atualize o Microsoft Edge ou use CSV/XLSX.');const bytes=new Uint8Array(await file.arrayBuffer());if(bytes.length<2||bytes[0]!==31||bytes[1]!==139)throw Error('Assinatura GZIP inválida.');const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));const blob=await new Response(stream).blob();parseCsv(new File([blob],file.name.replace(/\.gz$/i,''),{type:'text/csv'}),'CSV.GZ')}catch(err){showLoading(false);toast('Falha ao ler GZIP: '+err.message,true)}})();return}
+ if(kind==='csv'){parseCsv(file,'CSV');return}
  if(typeof XLSX==='undefined'){showLoading(false);toast('Biblioteca XLSX indisponível.',true);return}
  const rd=new FileReader();rd.onerror=()=>{showLoading(false);toast('Não foi possível abrir o Excel.',true)};rd.onload=ev=>{try{const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});let chosen=null;for(const name of wb.SheetNames){const matrix=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:false});if(!matrix.some(row=>row.some(v=>clean(v))))continue;let hi=matrix.findIndex(row=>{const hs=row.map(hv);return expected==='EDI'?hs.includes('NRCTRC')&&hs.includes('DTEMISSAO'):hs.includes('CONCAT')&&hs.includes('RESPONSAVEL')});if(hi<0)continue;const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{range:hi,defval:'',raw:false});chosen={rows,name};break}if(!chosen)throw Error('Nenhuma aba válida foi encontrada no arquivo.');finish(chosen.rows,chosen.name)}catch(err){showLoading(false);toast('Falha ao ler Excel: '+err.message,true)}};rd.readAsArrayBuffer(file)
 }
@@ -799,7 +802,10 @@ function apMsConfig(k){return {client:{select:'#apClient',label:'cliente',all:'T
 function renderApMulti(k){const root=q(`.ap-ms[data-ms="${k}"]`);if(!root)return;const cfg=apMsConfig(k),values=[...q(cfg.select).options].map(o=>o.value).filter(Boolean),set=apMulti[k],list=root.querySelector('.ap-ms-list'),search=keyNorm(root.querySelector('.ap-ms-search').value);[...set].forEach(v=>{if(!values.includes(v))set.delete(v)});const visible=values.filter(v=>!search||keyNorm(v).includes(search));list.innerHTML=visible.map(v=>`<label class="ap-ms-option"><input type="checkbox" value="${e(v)}" ${set.has(v)?'checked':''}><span>${e(v)}</span></label>`).join('')||'<div class="ap-ms-empty">Nenhuma opção</div>';root.querySelector('.ap-ms-trigger span').textContent=!set.size?cfg.all:set.size===1?[...set][0]:`${set.size} selecionados`;root.querySelector('.ap-ms-all input').checked=visible.length>0&&visible.every(v=>set.has(v));root.querySelector('.ap-ms-chips').innerHTML=[...set].map(v=>`<span class="ap-ms-chip" title="${e(v)}">${e(v)}<button type="button" data-v="${e(v)}">×</button></span>`).join('');list.querySelectorAll('input').forEach(ch=>ch.onchange=()=>{ch.checked?set.add(ch.value):set.delete(ch.value);A.followOnly=false;A.localOnly=false;A.page=1;renderApMulti(k);renderAllApoio()});root.querySelector('.ap-ms-chips').querySelectorAll('button').forEach(b=>b.onclick=()=>{set.delete(b.dataset.v);A.page=1;renderApMulti(k);renderAllApoio()})}
 function renderApMultiAll(){Object.keys(apMulti).forEach(renderApMulti)}
 qa('.ap-ms').forEach(root=>{const k=root.dataset.ms;root.querySelector('.ap-ms-trigger').onclick=ev=>{ev.stopPropagation();qa('.ap-ms.open').filter(x=>x!==root).forEach(x=>x.classList.remove('open'));root.classList.toggle('open')};root.querySelector('.ap-ms-search').oninput=()=>renderApMulti(k);root.querySelector('.ap-ms-all input').onchange=ev=>{const vals=[...root.querySelectorAll('.ap-ms-option input')].map(x=>x.value);vals.forEach(v=>ev.target.checked?apMulti[k].add(v):apMulti[k].delete(v));A.page=1;renderApMulti(k);renderAllApoio()}});document.addEventListener('click',ev=>{if(!ev.target.closest('.ap-ms'))qa('.ap-ms.open').forEach(x=>x.classList.remove('open'))});
-renderStatus();renderAllApoio();ensureCtrcCard();
+async function fetchFirst(names){let last;for(const name of names){try{const r=await fetch('./'+name+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const b=await r.blob();return new File([b],name,{type:b.type,lastModified:Date.now()})}catch(e){last=e}}throw last||Error('Arquivo não encontrado')}
+function readAnyAuto(file,expected){return new Promise((resolve,reject)=>{let done=false;try{readAny(file,expected,(rows,sheet)=>{done=true;resolve({rows,sheet})});setTimeout(()=>{if(!done)reject(Error('Tempo excedido ao processar '+file.name))},180000)}catch(e){reject(e)}})}
+async function autoLoadGithubBases(){if(location.protocol==='file:')return;try{const file=await fetchFirst(['EDI_238.csv.gz','EDI_238.csv','EDI_238.xlsx']);const x=await readAnyAuto(file,'EDI');loadEDI(x.rows,x.sheet,file)}catch(e){console.warn('EDI automático não carregado:',e)}try{const file=await fetchFirst(['apoio.csv.gz','apoio.csv','apoio.xlsx']);const x=await readAnyAuto(file,'APOIO');loadAPOIO(x.rows,x.sheet,file)}catch(e){console.warn('APOIO automático não carregado:',e)}}
+renderStatus();renderAllApoio();ensureCtrcCard();setTimeout(autoLoadGithubBases,100);
 })();
 </script>
 </body>
